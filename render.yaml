@@ -3,5 +3,5 @@ services:
     name: dashboard-comisones
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn dashboard_comisones_app:server"
+    startCommand: "gunicorn dashboard_comisiones_app:server"
     plan: free
