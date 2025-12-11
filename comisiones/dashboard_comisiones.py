@@ -273,25 +273,22 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
     
-    # === BONUS SEMANAL EXACTO BASADO EN FECHAS DE DEPOSITOS ===
+    # === BONUS SEMANAL EXACTO (por semana del mes, en base a depósitos) ===
     df_filtrado["year"] = df_filtrado["date"].dt.year
     df_filtrado["month"] = df_filtrado["date"].dt.month
 
-    # Determinar la semana del mes (1–5 aprox.)
     def week_of_month(dt):
         first_day = dt.replace(day=1)
-        dom = dt.day
-        adjusted = dom + first_day.weekday()
+        adjusted = dt.day + first_day.weekday()
         return int((adjusted - 1) / 7) + 1
 
     df_filtrado["week_month"] = df_filtrado["date"].apply(week_of_month)
 
-    # Agrupamos por agente, mes y semana (cuenta de FTDs por semana)
+    # Cada fila = 1 depósito → contamos filas por semana
     df_semana = (
         df_filtrado.groupby(["agent", "year", "month", "week_month"])
-        .agg({"date": "count"})
-        .reset_index()
-        .rename(columns={"date": "ftds"})
+        .size()
+        .reset_index(name="ftds")
     )
 
     bonus_total_usd = 0.0
@@ -300,14 +297,19 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         ftds = row["ftds"]
         weekly_usd = 0.0
 
-        # === Reglas del bonus semanal ===
+        # === Reglas actualizadas del bonus por semana ===
+        # 2 o más FTDs → 500 MXN
+        # 4 o más FTDs → 1000 MXN
+        # 5–14 FTDs → 1500 MXN
+        # 15 o más FTDs → 150 USD directos
+
         if ftds >= 15:
-            weekly_usd = 150
-        elif ftds == 5:
+            weekly_usd = 150  # USD directo
+        elif ftds >= 5:
             weekly_usd = 1500 / tipo_cambio
-        elif ftds == 4:
+        elif ftds >= 4:
             weekly_usd = 1000 / tipo_cambio
-        elif ftds == 2:
+        elif ftds >= 2:
             weekly_usd = 500 / tipo_cambio
 
         bonus_total_usd += weekly_usd
@@ -404,6 +406,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
