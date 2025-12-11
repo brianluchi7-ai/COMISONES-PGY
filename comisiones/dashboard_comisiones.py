@@ -272,36 +272,30 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         vacio = html.Div("Sin datos", style={"color": "#D4AF37", "textAlign": "center"})
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
-    # === Cálculo de BONUS SEMANAL por semana del MES (1..5) ===
+    # === Cálculo de BONUS SEMANAL correcto (por semana del mes y sumado) ===
     df_filtrado["year"] = df_filtrado["date"].dt.year
     df_filtrado["month"] = df_filtrado["date"].dt.month
     df_filtrado["week_month"] = df_filtrado["date"].apply(week_of_month)
 
     bonus_total_usd = 0.0
 
-    for (agent, year, month, week_m), grupo in df_filtrado.groupby(
-        ["agent", "year", "month", "week_month"]
-    ):
+    # Agrupamos por agente, mes y semana del mes
+    for (agent, year, month, week_m), grupo in df_filtrado.groupby(["agent", "year", "month", "week_month"]):
         ftds = len(grupo)
-        weekly_mxn = 0.0
         weekly_usd = 0.0
 
-        # Reglas de bonus por semana
+        # === reglas de bonus por semana ===
         if ftds >= 15:
-            # Bonus fijo en USD
-            weekly_usd += 150
+            weekly_usd = 150  # USD directo
         elif ftds == 5:
-            weekly_mxn = 1500
+            weekly_usd = 1500 / tipo_cambio
         elif ftds == 4:
-            weekly_mxn = 1000
+            weekly_usd = 1000 / tipo_cambio
         elif ftds == 2:
-            weekly_mxn = 500
+            weekly_usd = 500 / tipo_cambio
+        else:
+            weekly_usd = 0.0
 
-        # Convertimos los MXN de ESTA semana a USD con el tipo de cambio manual
-        if weekly_mxn > 0:
-            weekly_usd += (weekly_mxn / tipo_cambio)
-
-        # Sumamos el bonus de esta semana al total
         bonus_total_usd += weekly_usd
 
     total_bonus = round(bonus_total_usd, 2)
@@ -395,5 +389,6 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
