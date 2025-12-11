@@ -1,1 +1,2 @@
-web: gunicorn dashboard_comisiones:app.server
+web: gunicorn dashboard_comisiones:server
+
