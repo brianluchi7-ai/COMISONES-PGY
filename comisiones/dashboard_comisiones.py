@@ -176,7 +176,7 @@ app.layout = html.Div(
                         "textAlign": "center"
                     },
                     children=[
-                        html.Label("Date Range", style={"color": "#D4AF37", "fontWeight": "bold", "textAlign": "center", "display": "block"}),
+                        html.Label("Date", style={"color": "#D4AF37", "fontWeight": "bold", "textAlign": "center", "display": "block"}),
                         dcc.DatePickerRange(
                             id="filtro-fecha",
                             start_date=df["date"].min(),
@@ -391,3 +391,4 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
