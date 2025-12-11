@@ -79,7 +79,7 @@ for col in ["team", "agent", "country", "affiliate", "source", "id"]:
         df[col] = df[col].astype(str).str.strip().str.title()
         df[col].replace({"Nan": None, "None": None, "": None}, inplace=True)
 
-# === 5️⃣ Lógica comisión ===
+# === 5️⃣ Lógica comisión progresiva ===
 def porcentaje_tramo_progresivo(n_venta):
     if 1 <= n_venta <= 3:
         return 0.10
@@ -100,7 +100,44 @@ df["ftd_num"] = df.groupby("agent").cumcount() + 1
 df["comm_pct"] = df["ftd_num"].apply(porcentaje_tramo_progresivo)
 df["commission_usd"] = df["usd"] * df["comm_pct"]
 
-# === 6️⃣ Función formato K/M ===
+# === 6️⃣ Cálculo de BONUS SEMANAL acumulable ===
+MXN_USD = 18.19  # tipo de cambio fijo
+df["year"] = df["date"].dt.year
+df["week"] = df["date"].dt.isocalendar().week
+
+bonus_data = []
+
+for (agent, year, week), grupo in df.groupby(["agent", "year", "week"]):
+    ftds = len(grupo)
+    bonus_mxn = 0
+    bonus_usd = 0
+
+    if ftds >= 15:
+        prev_bonus = sum(b["bonus_usd"] for b in bonus_data if b["agent"] == agent)
+        bonus_usd = 150 + prev_bonus
+    elif ftds == 5:
+        bonus_mxn = 1500
+    elif ftds == 4:
+        bonus_mxn = 1000
+    elif ftds == 2:
+        bonus_mxn = 500
+
+    if bonus_mxn > 0:
+        bonus_usd = bonus_mxn / MXN_USD
+        prev_bonus = sum(b["bonus_usd"] for b in bonus_data if b["agent"] == agent)
+        bonus_usd += prev_bonus
+
+    bonus_data.append({
+        "agent": agent,
+        "year": year,
+        "week": week,
+        "bonus_usd": round(bonus_usd, 2)
+    })
+
+df_bonus = pd.DataFrame(bonus_data)
+df_bonus_total = df_bonus.groupby("agent", as_index=False)["bonus_usd"].max()
+
+# === 7️⃣ Función formato K/M ===
 def formato_km(valor):
     if valor >= 1_000_000:
         return f"{valor/1_000_000:.2f}M"
@@ -109,19 +146,14 @@ def formato_km(valor):
     else:
         return f"{valor:.0f}"
 
-# === 7️⃣ App Dash ===
+# === 8️⃣ App Dash ===
 app = dash.Dash(__name__)
 server = app.server
 app.title = "OBL Digital — Dashboard Comisiones"
 
-# === 8️⃣ Layout con filtros de Agente y Fecha ===
+# === 9️⃣ Layout ===
 app.layout = html.Div(
-    style={
-        "backgroundColor": "#0d0d0d",
-        "color": "#000000",
-        "fontFamily": "Poppins, Arial",
-        "padding": "20px",
-    },
+    style={"backgroundColor": "#0d0d0d", "color": "#000000", "fontFamily": "Poppins, Arial", "padding": "20px"},
     children=[
         html.H1("💰 DASHBOARD COMISIONES POR AGENTE", style={
             "textAlign": "center",
@@ -144,8 +176,16 @@ app.layout = html.Div(
                         "textAlign": "center"
                     },
                     children=[
-                        html.H4("Filtros", style={"color": "#D4AF37"}),
-                        html.Label("Agent", style={"color": "#D4AF37", "fontWeight": "bold"}),
+                        html.Label("Date Range", style={"color": "#D4AF37", "fontWeight": "bold", "textAlign": "center", "display": "block"}),
+                        dcc.DatePickerRange(
+                            id="filtro-fecha",
+                            start_date=df["date"].min(),
+                            end_date=df["date"].max(),
+                            display_format="YYYY-MM-DD",
+                            minimum_nights=0
+                        ),
+                        html.Br(), html.Br(),
+                        html.Label("Agent", style={"color": "#D4AF37", "fontWeight": "bold", "textAlign": "center", "display": "block"}),
                         dcc.Dropdown(
                             sorted(df["agent"].dropna().unique()),
                             [],
@@ -153,15 +193,6 @@ app.layout = html.Div(
                             id="filtro-agent",
                             placeholder="Selecciona uno o varios agentes"
                         ),
-                        html.Br(),
-                        html.Label("Date Range", style={"color": "#D4AF37", "fontWeight": "bold"}),
-                        dcc.DatePickerRange(
-                            id="filtro-fecha",
-                            start_date=df["date"].min(),
-                            end_date=df["date"].max(),
-                            display_format="YYYY-MM-DD",
-                            minimum_nights=0
-                        )
                     ],
                 ),
 
@@ -169,21 +200,19 @@ app.layout = html.Div(
                 html.Div(
                     style={"width": "72%"},
                     children=[
-                        # === Tarjetas ===
+                        # Tarjetas
                         html.Div(
                             style={"display": "flex", "justifyContent": "space-around", "flexWrap": "wrap", "gap": "10px"},
                             children=[
-                                html.Div(id="card-porcentaje", style={"flex": "1 1 20%", "minWidth": "220px"}),
-                                html.Div(id="card-usd-ventas", style={"flex": "1 1 20%", "minWidth": "220px"}),
-                                html.Div(id="card-usd-comision", style={"flex": "1 1 20%", "minWidth": "220px"}),
-                                html.Div(id="card-total-ftd", style={"flex": "1 1 20%", "minWidth": "220px"}),
+                                html.Div(id="card-porcentaje", style={"flex": "1 1 18%", "minWidth": "200px"}),
+                                html.Div(id="card-usd-ventas", style={"flex": "1 1 18%", "minWidth": "200px"}),
+                                html.Div(id="card-usd-bonus", style={"flex": "1 1 18%", "minWidth": "200px"}),
+                                html.Div(id="card-usd-comision", style={"flex": "1 1 18%", "minWidth": "200px"}),
+                                html.Div(id="card-total-ftd", style={"flex": "1 1 18%", "minWidth": "200px"}),
                             ],
                         ),
                         html.Br(),
-
-                        # === Único gráfico ===
                         dcc.Graph(id="grafico-comision-agent", style={"width": "100%", "height": "400px"}),
-
                         html.Br(),
                         html.H4("📋 Detalle de transacciones y comisiones", style={"color": "#D4AF37"}),
                         dash_table.DataTable(
@@ -207,11 +236,7 @@ app.layout = html.Div(
                                 "backgroundColor": "#1a1a1a",
                                 "fontSize": "12px",
                             },
-                            style_header={
-                                "backgroundColor": "#D4AF37",
-                                "color": "#000",
-                                "fontWeight": "bold"
-                            },
+                            style_header={"backgroundColor": "#D4AF37", "color": "#000", "fontWeight": "bold"},
                             sort_action="native",
                         ),
                     ],
@@ -221,21 +246,18 @@ app.layout = html.Div(
     ],
 )
 
-# === 9️⃣ Callback ===
+# === 🔟 Callback ===
 @app.callback(
     [
         Output("card-porcentaje", "children"),
         Output("card-usd-ventas", "children"),
+        Output("card-usd-bonus", "children"),
         Output("card-usd-comision", "children"),
         Output("card-total-ftd", "children"),
         Output("grafico-comision-agent", "figure"),
         Output("tabla-detalle", "data"),
     ],
-    [
-        Input("filtro-agent", "value"),
-        Input("filtro-fecha", "start_date"),
-        Input("filtro-fecha", "end_date"),
-    ],
+    [Input("filtro-agent", "value"), Input("filtro-fecha", "start_date"), Input("filtro-fecha", "end_date")],
 )
 def actualizar_dashboard(agent, start_date, end_date):
     df_filtrado = df.copy()
@@ -249,17 +271,20 @@ def actualizar_dashboard(agent, start_date, end_date):
         ]
 
     if df_filtrado.empty:
-        vacio = html.Div(
-            "Sin datos disponibles",
-            style={"color": "#D4AF37", "textAlign": "center", "fontWeight": "bold"}
-        )
         fig_vacio = px.scatter(title="Sin datos para mostrar")
         fig_vacio.update_layout(paper_bgcolor="#0d0d0d", plot_bgcolor="#0d0d0d", font_color="#f2f2f2")
-        return vacio, vacio, vacio, vacio, fig_vacio, []
+        vacio = html.Div("Sin datos", style={"color": "#D4AF37", "textAlign": "center"})
+        return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
     total_usd = df_filtrado["usd"].sum()
     total_commission = df_filtrado["commission_usd"].sum()
     total_ftd = len(df_filtrado)
+
+    # Bonus por agente filtrado
+    bonus_filtrado = df_bonus[df_bonus["agent"].isin(df_filtrado["agent"].unique())]
+    total_bonus = bonus_filtrado["bonus_usd"].max() if not bonus_filtrado.empty else 0
+    total_commission_final = total_commission + total_bonus
+
     promedio_pct = total_commission / total_usd if total_usd > 0 else 0.0
 
     card_style = {
@@ -280,9 +305,14 @@ def actualizar_dashboard(agent, start_date, end_date):
         html.H2(formato_km(total_usd), style={"color": "#FFFFFF"})
     ], style=card_style)
 
+    card_usd_bonus = html.Div([
+        html.H4("BONUS SEMANAL USD", style={"color": "#D4AF37"}),
+        html.H2(formato_km(total_bonus), style={"color": "#FFFFFF"})
+    ], style=card_style)
+
     card_usd_comision = html.Div([
-        html.H4("COMISIÓN USD", style={"color": "#D4AF37"}),
-        html.H2(formato_km(total_commission), style={"color": "#FFFFFF"})
+        html.H4("COMISIÓN USD (TOTAL)", style={"color": "#D4AF37"}),
+        html.H2(formato_km(total_commission_final), style={"color": "#FFFFFF"})
     ], style=card_style)
 
     card_total_ftd = html.Div([
@@ -290,7 +320,6 @@ def actualizar_dashboard(agent, start_date, end_date):
         html.H2(f"{total_ftd:,}", style={"color": "#FFFFFF"})
     ], style=card_style)
 
-    # === Gráfico único ===
     df_agent = df_filtrado.groupby("agent", as_index=False)["commission_usd"].sum()
     fig_agent = px.bar(
         df_agent,
@@ -300,12 +329,7 @@ def actualizar_dashboard(agent, start_date, end_date):
         color="commission_usd",
         color_continuous_scale="YlOrBr"
     )
-    fig_agent.update_layout(
-        paper_bgcolor="#0d0d0d",
-        plot_bgcolor="#0d0d0d",
-        font_color="#f2f2f2",
-        title_font_color="#D4AF37"
-    )
+    fig_agent.update_layout(paper_bgcolor="#0d0d0d", plot_bgcolor="#0d0d0d", font_color="#f2f2f2", title_font_color="#D4AF37")
 
     df_tabla = df_filtrado[[
         "date", "agent", "team", "country", "affiliate", "usd", "ftd_num", "comm_pct", "commission_usd"
@@ -316,6 +340,7 @@ def actualizar_dashboard(agent, start_date, end_date):
     return (
         card_porcentaje,
         card_usd_ventas,
+        card_usd_bonus,
         card_usd_comision,
         card_total_ftd,
         fig_agent,
@@ -363,7 +388,6 @@ app.index_string = '''
 </body>
 </html>
 '''
-
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
