@@ -272,34 +272,35 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         vacio = html.Div("Sin datos", style={"color": "#D4AF37", "textAlign": "center"})
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
-    # === Cálculo de BONUS SEMANAL correcto (por semana del mes y sumado) ===
+    # === BONUS SEMANAL EXACTO (acumulando semanas del mes completo por agente) ===
     df_filtrado["year"] = df_filtrado["date"].dt.year
     df_filtrado["month"] = df_filtrado["date"].dt.month
     df_filtrado["week_month"] = df_filtrado["date"].apply(week_of_month)
 
+    # Asegurar que trabajamos con el mes completo del agente seleccionado
+    agentes = df_filtrado["agent"].unique()
+
     bonus_total_usd = 0.0
 
-    # Agrupamos por agente, mes y semana del mes
-    for (agent, year, month, week_m), grupo in df_filtrado.groupby(["agent", "year", "month", "week_month"]):
-        ftds = len(grupo)
-        weekly_usd = 0.0
-
-        # === reglas de bonus por semana ===
-        if ftds >= 15:
-            weekly_usd = 150  # USD directo
-        elif ftds == 5:
-            weekly_usd = 1500 / tipo_cambio
-        elif ftds == 4:
-            weekly_usd = 1000 / tipo_cambio
-        elif ftds == 2:
-            weekly_usd = 500 / tipo_cambio
-        else:
+    for agent in agentes:
+        df_agent = df_filtrado[df_filtrado["agent"] == agent]
+        for (year, month, week_m), grupo in df_agent.groupby(["year", "month", "week_month"]):
+            ftds = len(grupo)
             weekly_usd = 0.0
 
-        bonus_total_usd += weekly_usd
+            # === reglas de bonus por semana ===
+            if ftds >= 15:
+                weekly_usd = 150  # USD directo
+            elif ftds == 5:
+                weekly_usd = 1500 / tipo_cambio
+            elif ftds == 4:
+                weekly_usd = 1000 / tipo_cambio
+            elif ftds == 2:
+                weekly_usd = 500 / tipo_cambio
+
+            bonus_total_usd += weekly_usd
 
     total_bonus = round(bonus_total_usd, 2)
-
 
     total_usd = df_filtrado["usd"].sum()
     total_commission = df_filtrado["commission_usd"].sum()
@@ -389,6 +390,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
