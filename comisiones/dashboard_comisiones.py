@@ -98,6 +98,17 @@ df["ftd_num"] = df.groupby("agent").cumcount() + 1
 df["comm_pct"] = df["ftd_num"].apply(porcentaje_tramo_progresivo)
 df["commission_usd"] = df["usd"] * df["comm_pct"]
 
+def week_of_month(dt):
+    """
+    Calcula la semana del mes (1..5) tomando en cuenta el día
+    de la semana del primer día del mes (similar a tu macro de VBA).
+    """
+    first_day = dt.replace(day=1)
+    # weekday(): lunes=0, domingo=6
+    adjusted_dom = dt.day + first_day.weekday()
+    return int((adjusted_dom - 1) / 7) + 1
+
+
 # === App ===
 app = dash.Dash(__name__)
 server = app.server
@@ -261,16 +272,20 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         vacio = html.Div("Sin datos", style={"color": "#D4AF37", "textAlign": "center"})
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
-    # === Cálculo de BONUS SEMANAL con tipo de cambio dinámico ===
+        # === Cálculo de BONUS SEMANAL por SEMANA DEL MES (1..4/5) ===
     df_filtrado["year"] = df_filtrado["date"].dt.year
-    df_filtrado["week"] = df_filtrado["date"].dt.isocalendar().week
+    df_filtrado["month"] = df_filtrado["date"].dt.month
+    df_filtrado["week_month"] = df_filtrado["date"].apply(week_of_month)
 
     bonus_data = []
-    for (agent, year, week), grupo in df_filtrado.groupby(["agent", "year", "week"]):
+    for (agent, year, month, week_m), grupo in df_filtrado.groupby(
+        ["agent", "year", "month", "week_month"]
+    ):
         ftds = len(grupo)
         bonus_mxn = 0
         bonus_usd = 0
 
+        # mismas reglas de bonus que ya tenías
         if ftds >= 15:
             prev_bonus = sum(b["bonus_usd"] for b in bonus_data if b["agent"] == agent)
             bonus_usd = 150 + prev_bonus
@@ -289,11 +304,13 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         bonus_data.append({
             "agent": agent,
             "year": year,
-            "week": week,
+            "month": month,
+            "week_month": week_m,
             "bonus_usd": round(bonus_usd, 2)
         })
 
     df_bonus = pd.DataFrame(bonus_data)
+
     total_bonus = df_bonus["bonus_usd"].max() if not df_bonus.empty else 0
 
     total_usd = df_filtrado["usd"].sum()
@@ -384,3 +401,4 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
