@@ -272,46 +272,40 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         vacio = html.Div("Sin datos", style={"color": "#D4AF37", "textAlign": "center"})
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
-        # === Cálculo de BONUS SEMANAL por SEMANA DEL MES (1..4/5) ===
+    # === Cálculo de BONUS SEMANAL por semana del MES (1..5) ===
     df_filtrado["year"] = df_filtrado["date"].dt.year
     df_filtrado["month"] = df_filtrado["date"].dt.month
     df_filtrado["week_month"] = df_filtrado["date"].apply(week_of_month)
 
-    bonus_data = []
+    bonus_total_usd = 0.0
+
     for (agent, year, month, week_m), grupo in df_filtrado.groupby(
         ["agent", "year", "month", "week_month"]
     ):
         ftds = len(grupo)
-        bonus_mxn = 0
-        bonus_usd = 0
+        weekly_mxn = 0.0
+        weekly_usd = 0.0
 
-        # mismas reglas de bonus que ya tenías
+        # Reglas de bonus por semana
         if ftds >= 15:
-            prev_bonus = sum(b["bonus_usd"] for b in bonus_data if b["agent"] == agent)
-            bonus_usd = 150 + prev_bonus
+            # Bonus fijo en USD
+            weekly_usd += 150
         elif ftds == 5:
-            bonus_mxn = 1500
+            weekly_mxn = 1500
         elif ftds == 4:
-            bonus_mxn = 1000
+            weekly_mxn = 1000
         elif ftds == 2:
-            bonus_mxn = 500
+            weekly_mxn = 500
 
-        if bonus_mxn > 0:
-            bonus_usd = bonus_mxn / tipo_cambio
-            prev_bonus = sum(b["bonus_usd"] for b in bonus_data if b["agent"] == agent)
-            bonus_usd += prev_bonus
+        # Convertimos los MXN de ESTA semana a USD con el tipo de cambio manual
+        if weekly_mxn > 0:
+            weekly_usd += (weekly_mxn / tipo_cambio)
 
-        bonus_data.append({
-            "agent": agent,
-            "year": year,
-            "month": month,
-            "week_month": week_m,
-            "bonus_usd": round(bonus_usd, 2)
-        })
+        # Sumamos el bonus de esta semana al total
+        bonus_total_usd += weekly_usd
 
-    df_bonus = pd.DataFrame(bonus_data)
+    total_bonus = round(bonus_total_usd, 2)
 
-    total_bonus = df_bonus["bonus_usd"].max() if not df_bonus.empty else 0
 
     total_usd = df_filtrado["usd"].sum()
     total_commission = df_filtrado["commission_usd"].sum()
@@ -401,4 +395,5 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
