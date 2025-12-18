@@ -145,14 +145,12 @@ df.loc[df["type"].str.upper() == "FTD", "comm_pct"] = (
 )
 
 # ==========================
-# RTN → PROGRESIVO NETO REAL
+# RTN → NETO REAL (DEP - WITHDRAWALS)
 # ==========================
 df_rtn = df[df["type"].str.upper() == "RTN"].copy()
-
-# Orden correcto
 df_rtn = df_rtn.sort_values(["agent", "year_month", "date"]).reset_index(drop=True)
 
-# Withdrawals por agente (TOTAL)
+# Withdrawals totales por agente
 withdrawals_map = (
     df_withdrawals
     .groupby("agent")["usd"]
@@ -160,28 +158,39 @@ withdrawals_map = (
     .to_dict()
 )
 
-# Acumulado neto progresivo
-def calcular_acumulado_neto(grupo):
-    retiro = withdrawals_map.get(grupo.name[0], 0)
-    acumulado = 0
-    resultado = []
-
-    for usd in grupo["usd"]:
-        acumulado += usd
-        neto = max(acumulado - retiro, 0)
-        resultado.append(neto)
-
-    grupo["usd_acumulado_neto"] = resultado
-    return grupo
-
-df_rtn = (
+# Total depósitos por agente/mes
+total_dep_map = (
     df_rtn
-    .groupby(["agent", "year_month"], group_keys=False)
-    .apply(calcular_acumulado_neto)
+    .groupby(["agent", "year_month"])["usd"]
+    .sum()
+    .to_dict()
 )
 
-# Porcentaje según acumulado NETO
+# Prorratear withdrawals fila a fila
+def calcular_usd_neto(row):
+    retiro_total = withdrawals_map.get(row["agent"], 0)
+    total_dep = total_dep_map.get((row["agent"], row["year_month"]), 0)
+
+    if total_dep <= 0:
+        return row["usd"]
+
+    proporcion = row["usd"] / total_dep
+    retiro_fila = retiro_total * proporcion
+    return max(row["usd"] - retiro_fila, 0)
+
+df_rtn["usd_neto"] = df_rtn.apply(calcular_usd_neto, axis=1)
+
+# Acumulado NETO progresivo
+df_rtn["usd_acumulado_neto"] = (
+    df_rtn.groupby(["agent", "year_month"])["usd_neto"]
+    .cumsum()
+)
+
+# Porcentaje correcto según NETO
 df_rtn["comm_pct"] = df_rtn["usd_acumulado_neto"].apply(porcentaje_rtn_progresivo)
+
+# Comisión sobre NETO
+df_rtn["commission_usd"] = df_rtn["usd_neto"] * df_rtn["comm_pct"]
 
 # Volver a unir
 df.update(df_rtn)
@@ -410,7 +419,11 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
 
 
 
+    if "usd_neto" in df_filtrado.columns:
+    total_usd = df_filtrado["usd_neto"].sum()
+    else:
     total_usd = df_filtrado["usd"].sum()
+
     total_commission = df_filtrado["commission_usd"].sum()
     total_commission_final = total_commission + total_bonus
     total_ftd = len(df_filtrado)
@@ -498,6 +511,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
