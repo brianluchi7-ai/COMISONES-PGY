@@ -145,40 +145,46 @@ df.loc[df["type"].str.upper() == "FTD", "comm_pct"] = (
 )
 
 # ==========================
-# RTN → PROGRESIVO NETO (DEP - WITHDRAWALS)
+# RTN → PROGRESIVO NETO REAL
 # ==========================
 df_rtn = df[df["type"].str.upper() == "RTN"].copy()
 
 # Orden correcto
-df_rtn = df_rtn.sort_values(["agent", "year_month", "date"])
+df_rtn = df_rtn.sort_values(["agent", "year_month", "date"]).reset_index(drop=True)
 
-# Acumulado de depósitos
-df_rtn["usd_acumulado_dep"] = (
-    df_rtn.groupby(["agent", "year_month"])["usd"]
-    .cumsum()
-)
-
-# Withdrawals totales por agente
-usd_withdrawals = (
+# Withdrawals por agente (TOTAL)
+withdrawals_map = (
     df_withdrawals
     .groupby("agent")["usd"]
     .sum()
     .to_dict()
 )
 
-# Restar withdrawals al acumulado
-def acumulado_neto(row):
-    retiro = usd_withdrawals.get(row["agent"], 0)
-    return max(row["usd_acumulado_dep"] - retiro, 0)
+# Acumulado neto progresivo
+def calcular_acumulado_neto(grupo):
+    retiro = withdrawals_map.get(grupo.name[0], 0)
+    acumulado = 0
+    resultado = []
 
-df_rtn["usd_acumulado_neto"] = df_rtn.apply(acumulado_neto, axis=1)
+    for usd in grupo["usd"]:
+        acumulado += usd
+        neto = max(acumulado - retiro, 0)
+        resultado.append(neto)
+
+    grupo["usd_acumulado_neto"] = resultado
+    return grupo
+
+df_rtn = (
+    df_rtn
+    .groupby(["agent", "year_month"], group_keys=False)
+    .apply(calcular_acumulado_neto)
+)
 
 # Porcentaje según acumulado NETO
 df_rtn["comm_pct"] = df_rtn["usd_acumulado_neto"].apply(porcentaje_rtn_progresivo)
 
 # Volver a unir
 df.update(df_rtn)
-
 
 # COMISIÓN FINAL
 df["commission_usd"] = df["usd"] * df["comm_pct"]
@@ -492,6 +498,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
