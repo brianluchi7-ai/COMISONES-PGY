@@ -366,6 +366,10 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         df_filtrado = df_filtrado[
             (df_filtrado["date"] >= pd.to_datetime(start_date)) &
             (df_filtrado["date"] <= pd.to_datetime(end_date))
+        
+        df_filtrado = df_filtrado.sort_values(
+            ["agent", "date"]
+          ).reset_index(drop=True)
         ]
 
     if df_filtrado.empty:
@@ -530,6 +534,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
