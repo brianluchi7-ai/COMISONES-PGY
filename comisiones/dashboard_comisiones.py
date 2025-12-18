@@ -93,6 +93,21 @@ def porcentaje_tramo_progresivo(n_venta):
         return 0.30
     return 0.0
 
+def porcentaje_rtn_por_usd_acumulado(usd_total):
+    if usd_total <= 25000:
+        return 0.05
+    elif usd_total <= 50000:
+        return 0.06
+    elif usd_total <= 75000:
+        return 0.075
+    elif usd_total <= 100000:
+        return 0.09
+    elif usd_total <= 150000:
+        return 0.10
+    else:
+        return 0.12
+
+
 # === 🧩 Corrección: reiniciar conteo por mes ===
 df = df.sort_values(["agent", "date"]).reset_index(drop=True)
 
@@ -102,7 +117,35 @@ df = df.dropna(subset=["date"])
 
 df["year_month"] = df["date"].dt.to_period("M")
 df["ftd_num"] = df.groupby(["agent", "year_month"]).cumcount() + 1
-df["comm_pct"] = df["ftd_num"].apply(porcentaje_tramo_progresivo)
+
+# === FTD: lógica original (NO SE TOCA) ===
+df.loc[df["type"].str.upper() == "FTD", "comm_pct"] = (
+    df.loc[df["type"].str.upper() == "FTD", "ftd_num"]
+    .apply(porcentaje_tramo_progresivo)
+)
+
+# === RTN: comisión por USD acumulado mensual ===
+df_rtn = df[df["type"].str.upper() == "RTN"].copy()
+
+usd_acumulado_rtn = (
+    df_rtn
+    .groupby(["agent", "year_month"])["usd"]
+    .sum()
+    .reset_index(name="usd_total")
+)
+
+df_rtn = df_rtn.merge(
+    usd_acumulado_rtn,
+    on=["agent", "year_month"],
+    how="left"
+)
+
+df_rtn["comm_pct"] = df_rtn["usd_total"].apply(porcentaje_rtn_por_usd_acumulado)
+
+# Volvemos a unir
+df.update(df_rtn)
+
+# === Comisión final ===
 df["commission_usd"] = df["usd"] * df["comm_pct"]
 
 
@@ -414,6 +457,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
