@@ -24,8 +24,27 @@ def cargar_datos():
     print("📁 Leyendo desde CSV local...")
     return pd.read_csv("CMN_MASTER_preview.csv", dtype=str)
 
+# =========================
+# CARGA WITHDRAWALS RTN
+# =========================
+
+def cargar_withdrawals():
+    try:
+        conexion = crear_conexion()
+        if conexion:
+            query = "SELECT agent, usd FROM withdrawals_pgy_2025"
+            df_w = pd.read_sql(query, conexion)
+            conexion.close()
+            return df_w
+    except Exception as e:
+        print(f"⚠️ Error leyendo withdrawals: {e}")
+    return pd.DataFrame(columns=["agent", "usd"])
+
+
 # === Carga base ===
 df = cargar_datos()
+df_withdrawals = cargar_withdrawals()
+
 df.columns = [c.strip().lower() for c in df.columns]
 
 if "source" not in df.columns:
@@ -70,6 +89,7 @@ def limpiar_usd(valor):
         return 0.0
 
 df["usd"] = df["usd"].apply(limpiar_usd)
+df_withdrawals["usd"] = df_withdrawals["usd"].apply(limpiar_usd)
 
 # === Texto limpio ===
 for col in ["team", "agent", "country", "affiliate", "source", "id"]:
@@ -127,25 +147,35 @@ df.loc[df["type"].str.upper() == "FTD", "comm_pct"] = (
 # === RTN: comisión por USD acumulado mensual ===
 df_rtn = df[df["type"].str.upper() == "RTN"].copy()
 
-usd_acumulado_rtn = (
-    df_rtn
-    .groupby(["agent", "year_month"])["usd"]
+# Depósitos acumulados
+usd_depositos = (
+    df_rtn.groupby(["agent", "year_month"])["usd"]
     .sum()
-    .reset_index(name="usd_total")
+    .reset_index(name="usd_depositos")
 )
 
-df_rtn = df_rtn.merge(
-    usd_acumulado_rtn,
-    on=["agent", "year_month"],
-    how="left"
+# Withdrawals por agente
+usd_withdrawals = (
+    df_withdrawals.groupby("agent")["usd"]
+    .sum()
+    .reset_index(name="usd_withdrawals")
 )
 
-df_rtn["comm_pct"] = df_rtn["usd_total"].apply(porcentaje_rtn_por_usd_acumulado)
+df_rtn = df_rtn.merge(usd_depositos, on=["agent", "year_month"], how="left")
+df_rtn = df_rtn.merge(usd_withdrawals, on="agent", how="left")
 
-# Volvemos a unir
+df_rtn["usd_withdrawals"] = df_rtn["usd_withdrawals"].fillna(0)
+
+df_rtn["usd_total"] = (df_rtn["usd_depositos"] - df_rtn["usd_withdrawals"]).clip(lower=0)
+
+df_rtn = df_rtn.sort_values(["agent", "year_month", "date"])
+df_rtn["usd_acumulado"] = df_rtn.groupby(["agent", "year_month"])["usd"].cumsum()
+
+df_rtn["comm_pct"] = df_rtn["usd_total"].apply(porcentaje_rtn_progresivo)
+
 df.update(df_rtn)
 
-# === Comisión final ===
+# COMISIÓN FINAL
 df["commission_usd"] = df["usd"] * df["comm_pct"]
 
 
@@ -457,6 +487,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
