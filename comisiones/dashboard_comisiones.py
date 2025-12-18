@@ -143,6 +143,10 @@ df.loc[df["type"].str.upper() == "FTD", "comm_pct"] = (
     df.loc[df["type"].str.upper() == "FTD", "ftd_num"]
     .apply(porcentaje_tramo_progresivo)
 )
+df.loc[df["type"].str.upper() == "FTD", "usd_neto"] = df["usd"]
+df.loc[df["type"].str.upper() == "FTD", "commission_usd"] = (
+    df["usd"] * df["comm_pct"]
+)
 
 # ==========================
 # RTN → NETO REAL (DEP - WITHDRAWALS)
@@ -166,7 +170,6 @@ total_dep_map = (
     .to_dict()
 )
 
-# Prorratear withdrawals fila a fila
 def calcular_usd_neto(row):
     retiro_total = withdrawals_map.get(row["agent"], 0)
     total_dep = total_dep_map.get((row["agent"], row["year_month"]), 0)
@@ -186,17 +189,14 @@ df_rtn["usd_acumulado_neto"] = (
     .cumsum()
 )
 
-# Porcentaje correcto según NETO
+# Porcentaje según acumulado NETO
 df_rtn["comm_pct"] = df_rtn["usd_acumulado_neto"].apply(porcentaje_rtn_progresivo)
 
-# Comisión sobre NETO
+# Comisión RTN sobre NETO
 df_rtn["commission_usd"] = df_rtn["usd_neto"] * df_rtn["comm_pct"]
 
-# Volver a unir
+# 🔧 FIX: unir SIN volver a recalcular después
 df.update(df_rtn)
-
-# COMISIÓN FINAL
-df["commission_usd"] = df["usd"] * df["comm_pct"]
 
 
 def week_of_month(dt):
@@ -419,10 +419,12 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
 
 
 
-    if "usd_neto" in df_filtrado.columns:
+# ventas USD netas si existen
+if "usd_neto" in df_filtrado.columns:
     total_usd = df_filtrado["usd_neto"].sum()
-    else:
+else:
     total_usd = df_filtrado["usd"].sum()
+
 
     total_commission = df_filtrado["commission_usd"].sum()
     total_commission_final = total_commission + total_bonus
@@ -511,6 +513,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
