@@ -141,7 +141,7 @@ df_rtn["usd_acumulado"] = (
 )
 
 # Porcentaje según tramo del acumulado
-df_rtn["comm_pct"] = df_rtn["usd_acumulado"].apply(porcentaje_rtn_progresivo)
+df_rtn["comm_pct"] = df_rtn["usd_acumulado"].apply(porcentaje_rtn_por_usd_acumulado)
 
 # Volver a unir
 df.update(df_rtn)
@@ -460,6 +460,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
