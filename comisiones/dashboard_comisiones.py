@@ -331,7 +331,6 @@ app.layout = html.Div(
     ],
 )
 
-# === Callback ===
 @app.callback(
     [
         Output("card-porcentaje", "children"),
@@ -351,15 +350,17 @@ app.layout = html.Div(
     ],
 )
 def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_cambio):
+
     df_filtrado = df.copy()
 
+    # === Filtros ===
     if rtn_agents or ftd_agents:
-        agentes_seleccionados = []
+        agentes = []
         if rtn_agents:
-            agentes_seleccionados += rtn_agents
+            agentes += rtn_agents
         if ftd_agents:
-            agentes_seleccionados += ftd_agents
-        df_filtrado = df_filtrado[df_filtrado["agent"].isin(agentes_seleccionados)]
+            agentes += ftd_agents
+        df_filtrado = df_filtrado[df_filtrado["agent"].isin(agentes)]
 
     if start_date and end_date:
         df_filtrado = df_filtrado[
@@ -369,12 +370,17 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
 
     if df_filtrado.empty:
         fig_vacio = px.scatter(title="Sin datos para mostrar")
-        fig_vacio.update_layout(paper_bgcolor="#0d0d0d", plot_bgcolor="#0d0d0d", font_color="#f2f2f2")
-        vacio = html.Div("Sin datos", style={"color": "#D4AF37", "textAlign": "center"})
+        fig_vacio.update_layout(
+            paper_bgcolor="#0d0d0d",
+            plot_bgcolor="#0d0d0d",
+            font_color="#f2f2f2"
+        )
+        vacio = html.Div("Sin datos", style={"color": "#D4AF37"})
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
-    
-    # === BONUS SEMANAL EXACTO (por semana del mes, en base a depósitos) ===
+    # ======================
+    # BONUS SEMANAL
+    # ======================
     df_filtrado["year"] = df_filtrado["date"].dt.year
     df_filtrado["month"] = df_filtrado["date"].dt.month
 
@@ -385,9 +391,9 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
 
     df_filtrado["week_month"] = df_filtrado["date"].apply(week_of_month)
 
-    # Cada fila = 1 depósito → contamos filas por semana
     df_semana = (
-        df_filtrado.groupby(["agent", "year", "month", "week_month"])
+        df_filtrado
+        .groupby(["agent", "year", "month", "week_month"])
         .size()
         .reset_index(name="ftds")
     )
@@ -396,42 +402,33 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
 
     for _, row in df_semana.iterrows():
         ftds = row["ftds"]
-        weekly_usd = 0.0
-
-        # === Reglas actualizadas del bonus por semana ===
-        # 2 o más FTDs → 500 MXN
-        # 4 o más FTDs → 1000 MXN
-        # 5–14 FTDs → 1500 MXN
-        # 15 o más FTDs → 150 USD directos
-
         if ftds >= 15:
-            weekly_usd = 150  # USD directo
+            bonus_total_usd += 150
         elif ftds >= 5:
-            weekly_usd = 1500 / tipo_cambio
+            bonus_total_usd += 1500 / tipo_cambio
         elif ftds >= 4:
-            weekly_usd = 1000 / tipo_cambio
+            bonus_total_usd += 1000 / tipo_cambio
         elif ftds >= 2:
-            weekly_usd = 500 / tipo_cambio
-
-        bonus_total_usd += weekly_usd
+            bonus_total_usd += 500 / tipo_cambio
 
     total_bonus = round(bonus_total_usd, 2)
 
-
-
-# ventas USD netas si existen
-if "usd_neto" in df_filtrado.columns:
-    total_usd = df_filtrado["usd_neto"].sum()
-else:
-    total_usd = df_filtrado["usd"].sum()
-
+    # ======================
+    # TOTALES (NETOS)
+    # ======================
+    if "usd_neto" in df_filtrado.columns:
+        total_usd = df_filtrado["usd_neto"].sum()
+    else:
+        total_usd = df_filtrado["usd"].sum()
 
     total_commission = df_filtrado["commission_usd"].sum()
     total_commission_final = total_commission + total_bonus
     total_ftd = len(df_filtrado)
     promedio_pct = total_commission / total_usd if total_usd > 0 else 0.0
 
-    # === Cards y gráfico (sin tocar estructura) ===
+    # ======================
+    # CARDS
+    # ======================
     card_style = {
         "backgroundColor": "#1a1a1a",
         "borderRadius": "10px",
@@ -441,20 +438,39 @@ else:
     }
 
     def card(title, value):
-        return html.Div([html.H4(title, style={"color": "#D4AF37"}), html.H2(value, style={"color": "#FFFFFF"})], style=card_style)
+        return html.Div(
+            [
+                html.H4(title, style={"color": "#D4AF37"}),
+                html.H2(value, style={"color": "#FFFFFF"}),
+            ],
+            style=card_style
+        )
 
+    # ======================
+    # GRÁFICO
+    # ======================
     fig_agent = px.bar(
         df_filtrado.groupby("agent", as_index=False)["commission_usd"].sum(),
-        x="agent", y="commission_usd",
+        x="agent",
+        y="commission_usd",
         title="Comisión USD by Agent",
         color="commission_usd",
         color_continuous_scale="YlOrBr"
     )
-    fig_agent.update_layout(paper_bgcolor="#0d0d0d", plot_bgcolor="#0d0d0d", font_color="#f2f2f2", title_font_color="#D4AF37")
+    fig_agent.update_layout(
+        paper_bgcolor="#0d0d0d",
+        plot_bgcolor="#0d0d0d",
+        font_color="#f2f2f2",
+        title_font_color="#D4AF37"
+    )
 
-    df_tabla = df_filtrado[[
-        "date", "agent", "type", "team", "country", "affiliate", "usd", "ftd_num", "comm_pct", "commission_usd"
-    ]].copy()
+    # ======================
+    # TABLA
+    # ======================
+    df_tabla = df_filtrado[
+        ["date", "agent", "type", "team", "country", "affiliate", "usd", "ftd_num", "comm_pct", "commission_usd"]
+    ].copy()
+
     df_tabla["comm_pct"] = df_tabla["comm_pct"].apply(lambda x: f"{x*100:.2f}%")
     df_tabla["commission_usd"] = df_tabla["commission_usd"].round(2)
 
@@ -465,8 +481,9 @@ else:
         card("COMISIÓN USD (TOTAL)", f"{total_commission_final:,.2f}"),
         card("TOTAL VENTAS (FTDs)", f"{total_ftd:,}"),
         fig_agent,
-        df_tabla.to_dict("records")
+        df_tabla.to_dict("records"),
     )
+
 
 
 # === 🔟 Index string para capturar imagen (igual que el otro dashboard) ===
@@ -513,6 +530,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
