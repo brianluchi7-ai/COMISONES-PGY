@@ -144,36 +144,41 @@ df.loc[df["type"].str.upper() == "FTD", "comm_pct"] = (
     .apply(porcentaje_tramo_progresivo)
 )
 
-# === RTN: comisión por USD acumulado mensual ===
+# ==========================
+# RTN → PROGRESIVO NETO (DEP - WITHDRAWALS)
+# ==========================
 df_rtn = df[df["type"].str.upper() == "RTN"].copy()
 
-# Depósitos acumulados
-usd_depositos = (
-    df_rtn.groupby(["agent", "year_month"])["usd"]
-    .sum()
-    .reset_index(name="usd_depositos")
-)
-
-# Withdrawals por agente
-usd_withdrawals = (
-    df_withdrawals.groupby("agent")["usd"]
-    .sum()
-    .reset_index(name="usd_withdrawals")
-)
-
-df_rtn = df_rtn.merge(usd_depositos, on=["agent", "year_month"], how="left")
-df_rtn = df_rtn.merge(usd_withdrawals, on="agent", how="left")
-
-df_rtn["usd_withdrawals"] = df_rtn["usd_withdrawals"].fillna(0)
-
-df_rtn["usd_total"] = (df_rtn["usd_depositos"] - df_rtn["usd_withdrawals"]).clip(lower=0)
-
+# Orden correcto
 df_rtn = df_rtn.sort_values(["agent", "year_month", "date"])
-df_rtn["usd_acumulado"] = df_rtn.groupby(["agent", "year_month"])["usd"].cumsum()
 
-df_rtn["comm_pct"] = df_rtn["usd_total"].apply(porcentaje_rtn_progresivo)
+# Acumulado de depósitos
+df_rtn["usd_acumulado_dep"] = (
+    df_rtn.groupby(["agent", "year_month"])["usd"]
+    .cumsum()
+)
 
+# Withdrawals totales por agente
+usd_withdrawals = (
+    df_withdrawals
+    .groupby("agent")["usd"]
+    .sum()
+    .to_dict()
+)
+
+# Restar withdrawals al acumulado
+def acumulado_neto(row):
+    retiro = usd_withdrawals.get(row["agent"], 0)
+    return max(row["usd_acumulado_dep"] - retiro, 0)
+
+df_rtn["usd_acumulado_neto"] = df_rtn.apply(acumulado_neto, axis=1)
+
+# Porcentaje según acumulado NETO
+df_rtn["comm_pct"] = df_rtn["usd_acumulado_neto"].apply(porcentaje_rtn_progresivo)
+
+# Volver a unir
 df.update(df_rtn)
+
 
 # COMISIÓN FINAL
 df["commission_usd"] = df["usd"] * df["comm_pct"]
@@ -487,6 +492,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
