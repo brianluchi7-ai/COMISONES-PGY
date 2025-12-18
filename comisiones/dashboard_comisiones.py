@@ -113,7 +113,7 @@ def porcentaje_tramo_progresivo(n_venta):
         return 0.30
     return 0.0
 
-def porcentaje_rtn_por_usd_acumulado(usd_total):
+def porcentaje_rtn_progresivo(usd_total):
     if usd_total <= 25000:
         return 0.05
     elif usd_total <= 50000:
@@ -487,6 +487,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
