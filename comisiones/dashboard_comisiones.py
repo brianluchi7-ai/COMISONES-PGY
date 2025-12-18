@@ -100,9 +100,9 @@ def porcentaje_rtn_por_usd_acumulado(usd_total):
         return 0.06
     elif usd_total <= 75000:
         return 0.075
-    elif usd_total <= 100000:
+    elif usd_total <= 101000:
         return 0.09
-    elif usd_total <= 150000:
+    elif usd_total <= 151000:
         return 0.10
     else:
         return 0.12
@@ -460,6 +460,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
