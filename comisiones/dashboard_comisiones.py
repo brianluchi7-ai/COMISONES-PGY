@@ -203,6 +203,16 @@ df_rtn = df_rtn.merge(
     how="left"
 )
 
+# 🔒 FIX CRÍTICO
+if "comm_pct" not in df_rtn.columns:
+    df_rtn["comm_pct"] = 0.0
+
+df_rtn["comm_pct"] = df_rtn["comm_pct"].fillna(0.0)
+
+# Comisión RTN sobre NETO
+df_rtn["commission_usd"] = df_rtn["usd_neto"] * df_rtn["comm_pct"]
+
+
 # Comisión RTN sobre NETO
 df_rtn["commission_usd"] = df_rtn["usd_neto"] * df_rtn["comm_pct"]
 
@@ -560,6 +570,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
