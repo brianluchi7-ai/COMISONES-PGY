@@ -281,22 +281,20 @@ app.layout = html.Div(
 
                         html.Label("RTN Agent", style={"color": "#D4AF37", "fontWeight": "bold"}),
                         dcc.Dropdown(
-                            sorted(df[df["type"].str.upper() == "RTN"]["agent"].dropna().unique()),
-                            [],
-                            multi=True,
                             id="filtro-rtn-agent",
+                            multi=True,
                             placeholder="Selecciona RTN agent"
-                        ),
+                       ),
+
                         html.Br(),
 
                         html.Label("FTD Agent", style={"color": "#D4AF37", "fontWeight": "bold"}),
                         dcc.Dropdown(
-                            sorted(df[df["type"].str.upper() == "FTD"]["agent"].dropna().unique()),
-                            [],
-                            multi=True,
                             id="filtro-ftd-agent",
+                            multi=True,
                             placeholder="Selecciona FTD agent"
                         ),
+
                         html.Br(),
 
                         html.Label("Tipo de cambio (MXN/USD)", style={"color": "#D4AF37", "fontWeight": "bold"}),
@@ -359,6 +357,43 @@ app.layout = html.Div(
         ),
     ],
 )
+@app.callback(
+    [
+        Output("filtro-rtn-agent", "options"),
+        Output("filtro-ftd-agent", "options"),
+    ],
+    [
+        Input("filtro-fecha", "start_date"),
+        Input("filtro-fecha", "end_date"),
+    ],
+)
+def actualizar_agentes_por_fecha(start_date, end_date):
+
+    df_f = df.copy()
+
+    if start_date and end_date:
+        df_f = df_f[
+            (df_f["date"] >= pd.to_datetime(start_date)) &
+            (df_f["date"] <= pd.to_datetime(end_date))
+        ]
+
+    rtn_agents = sorted(
+        df_f[df_f["type"].str.upper() == "RTN"]["agent"]
+        .dropna()
+        .unique()
+    )
+
+    ftd_agents = sorted(
+        df_f[df_f["type"].str.upper() == "FTD"]["agent"]
+        .dropna()
+        .unique()
+    )
+
+    return (
+        [{"label": a, "value": a} for a in rtn_agents],
+        [{"label": a, "value": a} for a in ftd_agents],
+    )
+
 
 @app.callback(
     [
@@ -576,6 +611,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
