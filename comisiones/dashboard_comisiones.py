@@ -183,14 +183,25 @@ def calcular_usd_neto(row):
 
 df_rtn["usd_neto"] = df_rtn.apply(calcular_usd_neto, axis=1)
 
-# Acumulado NETO progresivo
-df_rtn["usd_acumulado_neto"] = (
-    df_rtn.groupby(["agent", "year_month"])["usd_neto"]
-    .cumsum()
+# 🔥 TOTAL NETO POR AGENT / MES
+total_neto_mes = (
+    df_rtn
+    .groupby(["agent", "year_month"])["usd_neto"]
+    .sum()
+    .reset_index(name="usd_total_mes")
 )
 
-# Porcentaje según acumulado NETO
-df_rtn["comm_pct"] = df_rtn["usd_acumulado_neto"].apply(porcentaje_rtn_progresivo)
+# Determinar porcentaje ÚNICO por mes
+total_neto_mes["comm_pct"] = total_neto_mes["usd_total_mes"].apply(
+    porcentaje_rtn_progresivo
+)
+
+# Unir el porcentaje plano a cada fila
+df_rtn = df_rtn.merge(
+    total_neto_mes[["agent", "year_month", "comm_pct"]],
+    on=["agent", "year_month"],
+    how="left"
+)
 
 # Comisión RTN sobre NETO
 df_rtn["commission_usd"] = df_rtn["usd_neto"] * df_rtn["comm_pct"]
@@ -547,6 +558,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
