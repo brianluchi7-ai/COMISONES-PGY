@@ -453,7 +453,7 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
 
     total_bonus = round(bonus_total_usd, 2)
 
-    # ======================
+        # ======================
     # TOTALES (NETOS)
     # ======================
     if "usd_neto" in df_filtrado.columns:
@@ -464,11 +464,13 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
     total_commission = df_filtrado["commission_usd"].sum()
     total_commission_final = total_commission + total_bonus
     total_ftd = len(df_filtrado)
+
     # === PORCENTAJE REAL MOSTRADO ===
-if not df_filtrado.empty:
-    pct_real = df_filtrado["comm_pct"].max()
-else:
-    pct_real = 0.0
+    if not df_filtrado.empty:
+        pct_real = df_filtrado["comm_pct"].max()
+    else:
+        pct_real = 0.0
+
 
     # ======================
     # CARDS
@@ -574,6 +576,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
