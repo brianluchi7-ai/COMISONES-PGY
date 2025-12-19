@@ -406,25 +406,28 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         vacio = html.Div("Sin datos", style={"color": "#D4AF37"})
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
-    # ======================
-    # BONUS SEMANAL
-    # ======================
-    df_filtrado["year"] = df_filtrado["date"].dt.year
-    df_filtrado["month"] = df_filtrado["date"].dt.month
+   # ======================
+   # BONUS SEMANAL (SOLO FTD)
+   # ======================
+   df_bonus = df_filtrado[df_filtrado["type"].str.upper() == "FTD"].copy()
+
+   df_bonus["year"] = df_bonus["date"].dt.year
+   df_bonus["month"] = df_bonus["date"].dt.month
 
     def week_of_month(dt):
         first_day = dt.replace(day=1)
         adjusted = dt.day + first_day.weekday()
         return int((adjusted - 1) / 7) + 1
 
-    df_filtrado["week_month"] = df_filtrado["date"].apply(week_of_month)
+    df_bonus["week_month"] = df_bonus["date"].apply(week_of_month)
 
     df_semana = (
-        df_filtrado
+        df_bonus
         .groupby(["agent", "year", "month", "week_month"])
         .size()
         .reset_index(name="ftds")
     )
+
 
     bonus_total_usd = 0.0
 
@@ -558,6 +561,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
