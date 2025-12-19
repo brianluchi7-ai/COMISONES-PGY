@@ -392,19 +392,16 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         df_filtrado = df_filtrado[df_filtrado["agent"].isin(agentes)]
 
     if start_date and end_date:
-       df_filtrado = df_filtrado[
-           (df_filtrado["date"] >= pd.to_datetime(start_date)) &
-           (df_filtrado["date"] <= pd.to_datetime(end_date))
-    ]
+        df_filtrado = df_filtrado[
+            (df_filtrado["date"] >= pd.to_datetime(start_date)) &
+            (df_filtrado["date"] <= pd.to_datetime(end_date))
+        ]
 
-    # 🔧 FIX: ordenar para evitar que reaparezcan depósitos antiguos
-       df_filtrado = (
-         df_filtrado
-         .sort_values(["agent", "date"])
-         .reset_index(drop=True)
-    )
-
-
+        df_filtrado = (
+            df_filtrado
+            .sort_values(["agent", "date"])
+            .reset_index(drop=True)
+        )
 
     if df_filtrado.empty:
         fig_vacio = px.scatter(title="Sin datos para mostrar")
@@ -416,7 +413,7 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         vacio = html.Div("Sin datos", style={"color": "#D4AF37"})
         return vacio, vacio, vacio, vacio, vacio, fig_vacio, []
 
-       # ======================
+    # ======================
     # BONUS SEMANAL (SOLO FTD)
     # ======================
     df_bonus = df_filtrado[df_filtrado["type"].str.upper() == "FTD"].copy()
@@ -453,24 +450,32 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
 
     total_bonus = round(bonus_total_usd, 2)
 
-        # ======================
-    # TOTALES (NETOS)
     # ======================
-    if "usd_neto" in df_filtrado.columns:
-        total_usd = df_filtrado["usd_neto"].sum()
-    else:
-        total_usd = df_filtrado["usd"].sum()
+    # 🔥 RECALCULO RTN POST-FILTRO (FIX DEFINITIVO)
+    # ======================
+    df_rtn_f = df_filtrado[df_filtrado["type"].str.upper() == "RTN"]
 
+    if not df_rtn_f.empty:
+        total_rtn_neto = df_rtn_f["usd_neto"].sum()
+        pct_rtn = porcentaje_rtn_progresivo(total_rtn_neto)
+
+        df_filtrado.loc[
+            df_filtrado["type"].str.upper() == "RTN", "comm_pct"
+        ] = pct_rtn
+
+        df_filtrado.loc[
+            df_filtrado["type"].str.upper() == "RTN", "commission_usd"
+        ] = df_filtrado["usd_neto"] * pct_rtn
+
+    # ======================
+    # TOTALES
+    # ======================
+    total_usd = df_filtrado["usd_neto"].sum()
     total_commission = df_filtrado["commission_usd"].sum()
     total_commission_final = total_commission + total_bonus
     total_ftd = len(df_filtrado)
 
-    # === PORCENTAJE REAL MOSTRADO ===
-    if not df_filtrado.empty:
-        pct_real = df_filtrado["comm_pct"].max()
-    else:
-        pct_real = 0.0
-
+    pct_real = df_filtrado["comm_pct"].max() if not df_filtrado.empty else 0.0
 
     # ======================
     # CARDS
@@ -492,9 +497,6 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
             style=card_style
         )
 
-    # ======================
-    # GRÁFICO
-    # ======================
     fig_agent = px.bar(
         df_filtrado.groupby("agent", as_index=False)["commission_usd"].sum(),
         x="agent",
@@ -503,6 +505,7 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         color="commission_usd",
         color_continuous_scale="YlOrBr"
     )
+
     fig_agent.update_layout(
         paper_bgcolor="#0d0d0d",
         plot_bgcolor="#0d0d0d",
@@ -510,9 +513,6 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
         title_font_color="#D4AF37"
     )
 
-    # ======================
-    # TABLA
-    # ======================
     df_tabla = df_filtrado[
         ["date", "agent", "type", "team", "country", "affiliate", "usd", "ftd_num", "comm_pct", "commission_usd"]
     ].copy()
@@ -576,6 +576,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
