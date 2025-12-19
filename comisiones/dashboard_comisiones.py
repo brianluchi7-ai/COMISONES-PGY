@@ -195,8 +195,16 @@ df_rtn["comm_pct"] = df_rtn["usd_acumulado_neto"].apply(porcentaje_rtn_progresiv
 # Comisión RTN sobre NETO
 df_rtn["commission_usd"] = df_rtn["usd_neto"] * df_rtn["comm_pct"]
 
-# 🔧 FIX: unir SIN volver a recalcular después
-df.update(df_rtn)
+# 🔥 FIX DEFINITIVO: reemplazar RTN originales por RTN procesados
+
+# Separar FTD intactos
+df_ftd = df[df["type"].str.upper() == "FTD"].copy()
+
+# Unir FTD + RTN ya calculados
+df = pd.concat([df_ftd, df_rtn], ignore_index=True)
+
+# Orden final limpio
+df = df.sort_values(["agent", "date"]).reset_index(drop=True)
 
 
 def week_of_month(dt):
@@ -539,6 +547,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
