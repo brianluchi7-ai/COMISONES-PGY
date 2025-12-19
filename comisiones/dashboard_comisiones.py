@@ -464,7 +464,11 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
     total_commission = df_filtrado["commission_usd"].sum()
     total_commission_final = total_commission + total_bonus
     total_ftd = len(df_filtrado)
-    promedio_pct = total_commission / total_usd if total_usd > 0 else 0.0
+    # === PORCENTAJE REAL MOSTRADO ===
+if not df_filtrado.empty:
+    pct_real = df_filtrado["comm_pct"].max()
+else:
+    pct_real = 0.0
 
     # ======================
     # CARDS
@@ -515,7 +519,7 @@ def actualizar_dashboard(rtn_agents, ftd_agents, start_date, end_date, tipo_camb
     df_tabla["commission_usd"] = df_tabla["commission_usd"].round(2)
 
     return (
-        card("PORCENTAJE COMISIÓN", f"{promedio_pct*100:,.2f}%"),
+        card("PORCENTAJE COMISIÓN", f"{pct_real*100:,.2f}%"),
         card("VENTAS USD", f"{total_usd:,.2f}"),
         card("BONUS SEMANAL USD", f"{total_bonus:,.2f}"),
         card("COMISIÓN USD (TOTAL)", f"{total_commission_final:,.2f}"),
@@ -570,6 +574,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
