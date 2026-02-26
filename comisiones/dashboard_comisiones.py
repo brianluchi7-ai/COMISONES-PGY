@@ -238,6 +238,14 @@ def week_of_month(dt):
     adjusted_dom = dt.day + first_day.weekday()
     return int((adjusted_dom - 1) / 7) + 1
 
+# === 6️⃣ Inicializar app ===
+external_scripts = [
+    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+    "https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.10.0/pptxgen.bundle.js"
+]
+
+
 
 # === App ===
 app = dash.Dash(__name__)
@@ -611,6 +619,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
