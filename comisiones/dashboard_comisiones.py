@@ -248,7 +248,7 @@ external_scripts = [
 
 
 # === App ===
-app = dash.Dash(__name__)
+app = dash.Dash(__name__, external_scripts=external_scripts)
 server = app.server
 app.title = "OBL Digital — Dashboard Comisiones"
 
@@ -619,6 +619,7 @@ app.index_string = '''
 
 if __name__ == "__main__":
     app.run_server(host="0.0.0.0", port=8060, debug=True)
+
 
 
 
